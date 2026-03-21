@@ -42,13 +42,15 @@ python run.py
 # 进入项目目录
 cd E:\Desktop\trade_system
 
+# 方法一：直接运行 python（推荐）
 # 找到 conda 环境中的 python.exe 路径
 # 假设 conda 环境名称为 trade_sys
 # 默认路径类似：C:\Users\用户名\anaconda3\envs\trade_sys\python.exe
-# 或：C:\ProgramData\anaconda3\envs\trade_sys\python.exe
 
-# 创建服务（conda 环境）
-nssm.exe install TradeSystem "C:\Users\你的用户名\anaconda3\envs\trade_sys\python.exe" "E:\Desktop\trade_system\run.py" -d "E:\Desktop\trade_system"
+nssm.exe install TradeSystem "C:\ProgramData\miniconda3\Scripts\python.exe" "C:\trade_system\run.py" -d "C:\trade_system"
+
+# 方法二：使用 start.bat（会打开命令行窗口）
+nssm.exe install TradeSystem "cmd.exe" "/c C:\trade_system\start.bat" -d "C:\trade_system"
 ```
 
 参数说明：

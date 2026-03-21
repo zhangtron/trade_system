@@ -12,36 +12,6 @@ REM ====== 配置区域 ======
 set PROJECT_DIR=%~dp0
 set CONDA_ENV=trade_sys
 
-REM 查找 conda 环境中的 python.exe
-set PYTHON_EXE=
-for /d %%i in ("%CONDA_PREFIX%\envs\%CONDA_ENV%") do (
-    if exist "%%i\python.exe" set PYTHON_EXE=%%i\python.exe
-)
-if "%PYTHON_EXE%"=="" (
-    for /d %%i in ("%USERPROFILE%\anaconda3\envs\%CONDA_ENV%") do (
-        if exist "%%i\python.exe" set PYTHON_EXE=%%i\python.exe
-    )
-)
-if "%PYTHON_EXE%"=="" (
-    for /d %%i in ("%PROGRAMFILES%\Anaconda3\envs\%CONDA_ENV%") do (
-        if exist "%%i\python.exe" set PYTHON_EXE=%%i\python.exe
-    )
-)
-if "%PYTHON_EXE%"=="" (
-    for /d %%i in ("%PROGRAMFILES(x86)%\Anaconda3\envs\%CONDA_ENV%") do (
-        if exist "%%i\python.exe" set PYTHON_EXE=%%i\python.exe
-    )
-)
-
-if "%PYTHON_EXE%"=="" (
-    echo [错误] 找不到 conda 环境 "%CONDA_ENV%" 中的 python.exe
-    echo 请确保已创建 conda 环境并安装依赖
-    pause
-    exit /b 1
-)
-
-echo [OK] 找到 Python: %PYTHON_EXE%
-
 REM 检查 NSSM
 set NSSM=nssm.exe
 where nssm >nul 2>nul
@@ -67,10 +37,10 @@ net stop TradeSystem >nul 2>nul
 REM 创建日志目录
 if not exist "%PROJECT_DIR%logs" mkdir "%PROJECT_DIR%logs"
 
-REM 安装服务
+REM 安装服务 - 使用 cmd.exe 运行 start.bat
 echo.
 echo [INFO] 安装服务...
-%nssm% install TradeSystem "%PYTHON_EXE%" "%PROJECT_DIR%run.py" -d "%PROJECT_DIR%"
+%nssm% install TradeSystem "cmd.exe" "/c %PROJECT_DIR%start.bat" -d "%PROJECT_DIR%"
 if errorlevel 1 (
     echo [错误] 安装服务失败
     pause
