@@ -1,0 +1,12 @@
+database:
+  type: mysql  # mysql 或 sqlite
+  mysql:
+    user: root
+    password: 7842zc
+    host: localhost
+    port: 3306
+    database: trade_system_db
+
+app:
+  host: 127.0.0.1
+  port: 8899

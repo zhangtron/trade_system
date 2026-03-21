@@ -24,7 +24,10 @@ if errorlevel 1 (
 
 echo [OK] Conda环境已激活
 
-REM 检查并创建数据库
+REM 安装依赖
+pip install pyyaml -q
+
+REM 检查数据库
 if not exist "trade_system.db" (
     echo [INFO] 数据库文件不存在，跳过初始化
 ) else (

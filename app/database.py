@@ -1,21 +1,37 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
+from typing import Any
 
+import yaml
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 
-def _build_database_url() -> str:
-    raw_url = os.getenv("DATABASE_URL")
-    if raw_url:
-        return raw_url
+def _load_config() -> dict[str, Any]:
+    config_path = Path(__file__).parent.parent / "config.yaml"
+    if config_path.exists():
+        with open(config_path, encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    return {}
 
-    user = os.getenv("MYSQL_USER", "root")
-    password = os.getenv("MYSQL_PASSWORD", "7842zc")
-    host = os.getenv("MYSQL_HOST", "localhost")
-    port = os.getenv("MYSQL_PORT", "3306")
-    database = os.getenv("MYSQL_DATABASE", "trade_system_db")
+
+def _build_database_url() -> str:
+    config = _load_config()
+    db_config = config.get("database", {})
+    db_type = db_config.get("type", "mysql")
+
+    if db_type == "sqlite":
+        return "sqlite:///trade_system.db"
+
+    mysql_config = db_config.get("mysql", {})
+    user = mysql_config.get("user", "root")
+    password = mysql_config.get("password", "")
+    host = mysql_config.get("host", "localhost")
+    port = mysql_config.get("port", "3306")
+    database = mysql_config.get("database", "trade_system_db")
+
     return f"mysql+pymysql://{user}:{password}@{host}:{port}/{database}?charset=utf8mb4"
 
 
@@ -28,6 +44,7 @@ if IS_SQLITE:
 
 engine = create_engine(DATABASE_URL, **engine_kwargs)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+
 Base = declarative_base()
 
 
