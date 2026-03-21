@@ -1,0 +1,180 @@
+﻿﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>模拟交易系统</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="icon" href="data:,">
+</head>
+<body class="page-index">
+  <div class="page-shell">
+    <nav class="site-bar">
+      <a class="brand" href="/">
+        <span class="brand-mark"></span>
+        <span class="brand-copy">
+          <strong>Sim Trade Studio</strong>
+          <span>策略管理 · 交易联调 · 指标观测</span>
+        </span>
+      </a>
+      <div class="site-nav">
+        <a class="active" href="/">策略总览</a>
+        <a href="/trade-tester">下单测试</a>
+        <a href="/docs" target="_blank" rel="noreferrer">接口文档</a>
+      </div>
+      <span class="site-tag">SIMULATED MARKET</span>
+    </nav>
+
+    <header class="hero hero-home">
+      <div class="hero-main">
+        <p class="eyebrow">Trade Research Console</p>
+        <h1>策略管理台</h1>
+        <p class="hero-copy">首页默认只展示草稿和激活策略，归档策略会单独收纳在二级窗口里，避免低关注策略占用主看板空间。</p>
+        <div class="hero-note">适合日常查看策略表现、切换状态和进入详情页继续联调。</div>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-card">
+          <span>关注中策略</span>
+          <strong id="totalStrategies">0</strong>
+        </div>
+        <div class="stat-card">
+          <span>持仓市值</span>
+          <strong id="marketValue">0.00</strong>
+        </div>
+        <div class="stat-card">
+          <span>浮动盈亏</span>
+          <strong id="floatingPnl">0.00</strong>
+        </div>
+      </div>
+    </header>
+
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="strategies" type="button">策略看板</button>
+      <button class="tab-btn" data-tab="create" type="button">创建策略</button>
+    </div>
+
+    <div class="tab-content active" id="strategies-tab">
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-tag">Strategy Board</p>
+            <h2>策略列表</h2>
+          </div>
+          <p>这里只展示草稿与激活策略。点击策略名称可进入详情页，查看持仓、历史持仓变化和收益曲线。</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>类型</th>
+                <th>状态</th>
+                <th>累计收益</th>
+                <th>年化收益</th>
+                <th>今日收益</th>
+                <th>最大回撤</th>
+                <th>累计盈亏</th>
+                <th>版本</th>
+                <th>创建时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="strategyTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel archive-panel is-collapsed" id="archivePanel">
+        <div class="panel-heading archive-heading">
+          <div>
+            <p class="section-tag">Archived Strategies</p>
+            <h2>归档策略</h2>
+          </div>
+          <div class="panel-actions">
+            <span class="count-pill"><span id="archivedCount">0</span> 个归档策略</span>
+            <button type="button" id="archiveToggle" class="ghost-btn archive-toggle">展开归档策略</button>
+          </div>
+        </div>
+        <div class="archive-panel-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>名称</th>
+                  <th>类型</th>
+                  <th>状态</th>
+                  <th>累计收益</th>
+                  <th>年化收益</th>
+                  <th>最大回撤</th>
+                  <th>累计盈亏</th>
+                  <th>版本</th>
+                  <th>创建时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="archivedStrategyTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="tab-content" id="create-tab">
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-tag">Create Strategy</p>
+            <h2>新增策略</h2>
+          </div>
+          <p>支持参数 JSON 配置。若填写 <code>initial_capital</code>，收益率会按该初始资金归一化。</p>
+        </div>
+        <form id="strategyForm" class="strategy-form">
+          <label>
+            <span>策略名称</span>
+            <input autocomplete="off" name="name" placeholder="例如：CTA 趋势跟踪 v1" required>
+          </label>
+          <label>
+            <span>策略类型</span>
+            <input autocomplete="off" name="type" placeholder="例如：趋势跟踪 / 套利 / 多因子" required>
+          </label>
+          <label>
+            <span>策略状态</span>
+            <select autocomplete="off" name="status">
+              <option value="draft">草稿</option>
+              <option value="active">激活</option>
+              <option value="archived">归档</option>
+            </select>
+          </label>
+          <label>
+            <span>版本说明</span>
+            <input id="versionPreview" name="version_preview" value="v1" placeholder="创建后会自动记录版本" autocomplete="off" disabled>
+          </label>
+          <label class="full-row">
+            <span>策略描述</span>
+            <textarea autocomplete="off" name="description" placeholder="描述策略逻辑、风控方式或适用品种"></textarea>
+          </label>
+          <label class="full-row">
+            <span>参数 JSON</span>
+            <textarea autocomplete="off" name="parameters" placeholder='例如：{"ma_short": 5, "stop_loss": 0.08, "initial_capital": 100000}'></textarea>
+          </label>
+          <div class="form-hint full-row">收益、回撤和年化收益的计算会自动随 <code>initial_capital</code>、交易和现价更新同步刷新。</div>
+          <div class="button-row full-row">
+            <button type="submit">创建策略</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </div>
+  <script src="/static/app.js"></script>
+  <script>
+    document.querySelectorAll('.tab-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach((item) => item.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach((item) => item.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab + '-tab').classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>

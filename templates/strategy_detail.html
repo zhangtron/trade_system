@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>策略详情</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="icon" href="data:,">
+</head>
+<body class="page-detail" data-strategy-id="{{ strategy_id }}">
+  <div class="page-shell">
+    <nav class="site-bar">
+      <a class="brand" href="/">
+        <span class="brand-mark"></span>
+        <span class="brand-copy">
+          <strong>Sim Trade Studio</strong>
+          <span>策略管理 · 交易联调 · 指标观测</span>
+        </span>
+      </a>
+      <div class="site-nav">
+        <a href="/">策略总览</a>
+        <a class="active" href="/strategies/{{ strategy_id }}">策略详情</a>
+        <a href="/trade-tester">下单测试</a>
+      </div>
+      <span class="site-tag">STRATEGY INSIGHT</span>
+    </nav>
+
+    <header class="hero hero-compact">
+      <div class="hero-main">
+        <p class="eyebrow">Strategy Insight</p>
+        <h1 id="detailTitle">策略详情</h1>
+        <p class="hero-copy" id="detailDesc">加载中...</p>
+      </div>
+      <div class="hero-stats detail-meta">
+        <div class="stat-card"><span>状态</span><strong id="detailStatus">--</strong></div>
+        <div class="stat-card"><span>类型</span><strong id="detailType">--</strong></div>
+        <div class="stat-card"><span>版本</span><strong id="detailVersion">--</strong></div>
+      </div>
+    </header>
+
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="overview">收益概览</button>
+      <button class="tab-btn" data-tab="evaluation">策略评估</button>
+      <button class="tab-btn" data-tab="positions">当前持仓</button>
+      <button class="tab-btn" data-tab="trades">成交记录</button>
+      <button class="tab-btn" data-tab="history">历史变化</button>
+    </div>
+
+    <div class="tab-content active" id="overview-tab">
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-tag">Performance Snapshot</p>
+            <h2>收益概览</h2>
+          </div>
+          <p>展示策略列表中的核心收益指标。</p>
+        </div>
+        <div class="metric-grid" id="detailMetrics"></div>
+      </section>
+    </div>
+
+    <div class="tab-content" id="evaluation-tab">
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-tag">Evaluation Matrix</p>
+            <h2>策略评估</h2>
+          </div>
+          <p>展示更完整的收益、风险和超额收益相关指标。</p>
+        </div>
+        <div class="metric-grid-wide" id="detailEvaluationMetrics"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-tag">Equity Curve</p>
+            <h2>收益曲线</h2>
+          </div>
+          <p>根据策略交易和当前持仓动态生成，用于快速查看收益与回撤变化。</p>
+        </div>
+        <div id="curveChart" class="chart-shell"></div>
+      </section>
+    </div>
+
+    <div class="tab-content" id="positions-tab">
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-tag">Live Position</p>
+            <h2>当前持仓</h2>
+          </div>
+          <p>展示策略维度下未平仓头寸。</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>标的</th>
+                <th>数量</th>
+                <th>平均成本</th>
+                <th>当前价格</th>
+                <th>持仓市值</th>
+                <th>浮动盈亏</th>
+              </tr>
+            </thead>
+            <tbody id="currentPositionsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="tab-content" id="trades-tab">
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-tag">Recent Trades</p>
+            <h2>最近成交</h2>
+          </div>
+          <p>最近 20 笔交易。</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>标的</th>
+                <th>方向</th>
+                <th>数量</th>
+                <th>价格</th>
+                <th>已实现盈亏</th>
+              </tr>
+            </thead>
+            <tbody id="recentTradesBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="tab-content" id="history-tab">
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-tag">Position Timeline</p>
+            <h2>历史持仓变化</h2>
+          </div>
+          <p>按交易顺序重建仓位变化，便于检查每笔下单后的持仓状态。</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>标的</th>
+                <th>方向</th>
+                <th>变动数量</th>
+                <th>持仓数量</th>
+                <th>平均成本</th>
+                <th>参考价格</th>
+                <th>浮动盈亏</th>
+              </tr>
+            </thead>
+            <tbody id="positionHistoryBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="hero-actions" style="margin-top: 16px;">
+      <a class="nav-btn nav-btn-secondary" href="/">返回策略列表</a>
+      <a class="nav-btn" href="/trade-tester">去下单测试</a>
+    </div>
+  </div>
+  <script src="/static/strategy_detail.js"></script>
+  <script>
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab + '-tab').classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>
