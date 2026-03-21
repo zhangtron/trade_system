@@ -113,11 +113,11 @@ nssm.exe set TradeSystem AppRotateFiles 1
 
 ## 访问应用
 
-服务启动后，访问：http://127.0.0.1:8000
+服务启动后，访问：http://127.0.0.1:8899
 
 如需局域网访问，修改 `run.py`：
 ```python
-uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=False)
+uvicorn.run("app.main:app", host="0.0.0.0", port=8899, reload=False)
 ```
 
 ## 故障排查

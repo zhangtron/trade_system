@@ -1,4 +1,4 @@
-﻿# 模拟交易系统
+# 模拟交易系统
 
 基于 `FastAPI + SQLAlchemy + MySQL` 的轻量模拟交易系统，当前提供三类主要页面：
 
@@ -14,9 +14,9 @@ python run.py
 
 启动后访问：
 
-- 首页：[http://127.0.0.1:8000/](http://127.0.0.1:8000/)
-- 下单测试台：[http://127.0.0.1:8000/trade-tester](http://127.0.0.1:8000/trade-tester)
-- Swagger：[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- 首页：[http://127.0.0.1:8899/](http://127.0.0.1:8899/)
+- 下单测试台：[http://127.0.0.1:8899/trade-tester](http://127.0.0.1:8899/trade-tester)
+- Swagger：[http://127.0.0.1:8899/docs](http://127.0.0.1:8899/docs)
 
 ## 数据库配置
 

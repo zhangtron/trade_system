@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
@@ -64,7 +64,7 @@ def load_bars(symbol: str, start_date: str, end_date: str, download: bool = True
 
 
 class TradeApi:
-    def __init__(self, base_url: str = "http://127.0.0.1:8000", timeout: int = 15, session=None):
+    def __init__(self, base_url: str = "http://127.0.0.1:8899", timeout: int = 15, session=None):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.session = session or requests.Session()
@@ -200,7 +200,7 @@ class SimpleMaStrategy:
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Minimal HTTP strategy template")
-    parser.add_argument("--base-url", default="http://127.0.0.1:8000")
+    parser.add_argument("--base-url", default="http://127.0.0.1:8899")
     parser.add_argument("--strategy-id", type=int, required=True, help="Existing strategy_id")
     parser.add_argument("--symbol", default="300308.SZ")
     parser.add_argument("--start-date", default="20250101")
