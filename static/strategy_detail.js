@@ -1,4 +1,4 @@
-﻿async function fetchJson(url, options = {}) {
+async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
     headers: { "Content-Type": "application/json" },
     ...options,
@@ -10,23 +10,38 @@
   return response.json();
 }
 
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function toNumber(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
 function formatDate(value) {
-  return new Date(value).toLocaleString("zh-CN", { hour12: false });
+  if (!value) return "--";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "--";
+  return d.toLocaleString("zh-CN", { hour12: false });
 }
 
 function formatNumber(value, digits = 2) {
   if (value === null || value === undefined || value === "") return "--";
-  return Number(value).toFixed(digits);
+  const num = Number(value);
+  return Number.isFinite(num) ? num.toFixed(digits) : "--";
 }
 
 function formatPercent(value) {
-  if (value === null || value === undefined) return "--";
-  return `${Number(value).toFixed(2)}%`;
+  if (value === null || value === undefined || value === "") return "--";
+  const num = Number(value);
+  return Number.isFinite(num) ? `${num.toFixed(2)}%` : "--";
 }
 
 function formatRatio(value) {
   if (value === null || value === undefined || value === "") return "--";
-  return Number(value).toFixed(3);
+  const num = Number(value);
+  return Number.isFinite(num) ? num.toFixed(3) : "--";
 }
 
 function metricClass(value, inverse = false) {
@@ -41,7 +56,7 @@ function statusLabel(status) {
     draft: "草稿",
     active: "激活",
     archived: "归档",
-  }[status] || status;
+  }[status] || status || "--";
 }
 
 function renderEmptyRow(tbodyId, columns, text) {
@@ -49,7 +64,8 @@ function renderEmptyRow(tbodyId, columns, text) {
   tbody.innerHTML = `<tr><td colspan="${columns}" class="empty-state">${text}</td></tr>`;
 }
 
-function renderCurve(points) {
+function renderCurve(pointsRaw) {
+  const points = asArray(pointsRaw);
   const container = document.getElementById("curveChart");
   if (!points.length) {
     container.innerHTML = '<div class="empty-state">暂无收益曲线数据</div>';
@@ -59,7 +75,7 @@ function renderCurve(points) {
   const width = 900;
   const height = 300;
   const padding = 28;
-  const values = points.map((point) => Number(point.equity_value));
+  const values = points.map((point) => toNumber(point.equity_value));
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
@@ -67,7 +83,7 @@ function renderCurve(points) {
 
   const plotted = points.map((point, index) => {
     const x = points.length === 1 ? width / 2 : padding + step * index;
-    const y = height - padding - ((Number(point.equity_value) - min) / range) * (height - padding * 2);
+    const y = height - padding - ((toNumber(point.equity_value) - min) / range) * (height - padding * 2);
     return { x, y, value: point.equity_value, date: point.curve_date };
   });
 
@@ -79,18 +95,14 @@ function renderCurve(points) {
     "Z",
   ].join(" ");
   const dots = plotted
-    .map(
-      (point) => `
-        <circle cx="${point.x}" cy="${point.y}" r="4.5" class="curve-point"></circle>
-      `,
-    )
+    .map((point) => `<circle cx="${point.x}" cy="${point.y}" r="4.5" class="curve-point"></circle>`)
     .join("");
   const latest = plotted[plotted.length - 1];
 
   container.innerHTML = `
     <div class="curve-meta">
-      <span>起点：${points[0].curve_date}</span>
-      <span>终点：${points[points.length - 1].curve_date}</span>
+      <span>起点：${points[0].curve_date || "--"}</span>
+      <span>终点：${points[points.length - 1].curve_date || "--"}</span>
       <span>最新净值：${formatNumber(latest.value)}</span>
     </div>
     <svg viewBox="0 0 ${width} ${height}" class="curve-svg" preserveAspectRatio="none">
@@ -114,15 +126,17 @@ function renderCurve(points) {
   `;
 }
 
-function renderSummaryMetrics(metrics) {
+function renderSummaryMetrics(summary) {
   const container = document.getElementById("detailMetrics");
+  if (!container) return;
   const items = [
-    ["累计收益", formatPercent(metrics.cumulative_return_pct), metricClass(metrics.cumulative_return_pct)],
-    ["年化收益", formatPercent(metrics.annualized_return_pct), metricClass(metrics.annualized_return_pct)],
-    ["今日收益", formatPercent(metrics.today_return_pct), metricClass(metrics.today_return_pct)],
-    ["最大回撤", formatPercent(metrics.max_drawdown_pct), metricClass(metrics.max_drawdown_pct, true)],
-    ["累计盈亏", formatNumber(metrics.cumulative_profit), metricClass(metrics.cumulative_profit)],
-    ["当前持仓数", String(metrics.current_positions_count), "metric-flat"],
+    ["累计收益", formatPercent(summary.cumulative_return_pct), metricClass(summary.cumulative_return_pct)],
+    ["年化收益", formatPercent(summary.annualized_return_pct), metricClass(summary.annualized_return_pct)],
+    ["今日收益", formatPercent(summary.today_return_pct), metricClass(summary.today_return_pct)],
+    ["最大回撤", formatPercent(summary.max_drawdown_pct), metricClass(summary.max_drawdown_pct, true)],
+    ["持仓股票数量", String(summary.position_symbols_count), "metric-flat"],
+    ["持仓金额", formatNumber(summary.total_market_value), metricClass(summary.total_market_value)],
+    ["累计盈利金额", formatNumber(summary.cumulative_profit), metricClass(summary.cumulative_profit)],
   ];
   container.innerHTML = items
     .map(
@@ -136,7 +150,8 @@ function renderSummaryMetrics(metrics) {
     .join("");
 }
 
-function renderEvaluationMetrics(metrics) {
+function renderEvaluationMetrics(metricsRaw) {
+  const metrics = metricsRaw || {};
   const container = document.getElementById("detailEvaluationMetrics");
   const items = [
     ["策略收益", formatPercent(metrics.strategy_return_pct), metricClass(metrics.strategy_return_pct)],
@@ -172,16 +187,19 @@ function renderEvaluationMetrics(metrics) {
     .join("");
 }
 
-function fillCurrentPositions(positions) {
+function fillCurrentPositions(positionsRaw) {
+  const positions = asArray(positionsRaw);
   if (!positions.length) {
-    renderEmptyRow("currentPositionsBody", 6, "当前没有持仓");
+    renderEmptyRow("currentPositionsBody", 7, "当前没有持仓");
     return;
   }
+
   document.getElementById("currentPositionsBody").innerHTML = positions
     .map(
-      (item) => `
+      (item, index) => `
         <tr>
-          <td>${item.symbol}</td>
+          <td>${index + 1}</td>
+          <td>${item.symbol || "--"}</td>
           <td>${formatNumber(item.quantity, 6)}</td>
           <td>${formatNumber(item.avg_cost, 6)}</td>
           <td>${formatNumber(item.current_price, 6)}</td>
@@ -193,18 +211,20 @@ function fillCurrentPositions(positions) {
     .join("");
 }
 
-function fillRecentTrades(trades) {
+function fillRecentTrades(tradesRaw) {
+  const trades = asArray(tradesRaw);
   if (!trades.length) {
     renderEmptyRow("recentTradesBody", 6, "暂无成交记录");
     return;
   }
+
   document.getElementById("recentTradesBody").innerHTML = trades
     .map(
       (item) => `
         <tr>
           <td>${formatDate(item.trade_time)}</td>
-          <td>${item.symbol}</td>
-          <td>${item.direction}</td>
+          <td>${item.symbol || "--"}</td>
+          <td>${item.direction || "--"}</td>
           <td>${formatNumber(item.quantity, 6)}</td>
           <td>${formatNumber(item.price, 6)}</td>
           <td class="${metricClass(item.realized_pnl)}">${formatNumber(item.realized_pnl)}</td>
@@ -214,17 +234,19 @@ function fillRecentTrades(trades) {
     .join("");
 }
 
-function fillPositionHistory(history) {
+function fillPositionHistory(historyRaw) {
+  const history = asArray(historyRaw);
   if (!history.length) {
     renderEmptyRow("positionHistoryBody", 8, "暂无已平仓历史");
     return;
   }
+
   document.getElementById("positionHistoryBody").innerHTML = history
     .map(
       (item) => `
         <tr>
           <td>${formatDate(item.close_time)}</td>
-          <td>${item.symbol}</td>
+          <td>${item.symbol || "--"}</td>
           <td>${formatDate(item.open_time)}</td>
           <td>${formatNumber(item.entry_quantity, 6)}</td>
           <td>${formatNumber(item.avg_cost, 6)}</td>
@@ -237,23 +259,63 @@ function fillPositionHistory(history) {
     .join("");
 }
 
+function buildPositionSummary(strategy, currentPositionsRaw) {
+  const currentPositions = asArray(currentPositionsRaw);
+  const positionSymbolsCount = currentPositions.length;
+  const totalMarketValue = currentPositions.reduce((acc, item) => acc + toNumber(item.market_value), 0);
+  const cumulativeProfit = toNumber(strategy && strategy.cumulative_profit);
+  return {
+    cumulative_return_pct: strategy ? strategy.cumulative_return_pct : null,
+    annualized_return_pct: strategy ? strategy.annualized_return_pct : null,
+    today_return_pct: strategy ? strategy.today_return_pct : null,
+    max_drawdown_pct: strategy ? strategy.max_drawdown_pct : null,
+    cumulative_profit: cumulativeProfit,
+    position_symbols_count: positionSymbolsCount,
+    total_market_value: totalMarketValue,
+  };
+}
+
+function fillHeaderStats(summary) {
+  document.getElementById("detailPositionSymbols").textContent = String(summary.position_symbols_count || 0);
+  document.getElementById("detailPositionMarketValue").textContent = formatNumber(summary.total_market_value);
+  document.getElementById("detailCumulativeProfit").textContent = formatNumber(summary.cumulative_profit);
+}
+
+function setTextIfExists(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
 async function loadDashboard() {
   const strategyId = document.body.dataset.strategyId;
-  const data = await fetchJson(`/api/strategies/${strategyId}/dashboard`);
-  document.getElementById("detailTitle").textContent = data.strategy.name;
-  document.getElementById("detailDesc").textContent = data.strategy.description || "暂无策略描述";
-  document.getElementById("detailStatus").textContent = statusLabel(data.strategy.status);
-  document.getElementById("detailType").textContent = data.strategy.type;
-  document.getElementById("detailVersion").textContent = `v${data.strategy.version}`;
-  renderSummaryMetrics({ ...data.strategy, current_positions_count: data.current_positions.length });
+  const data = (await fetchJson(`/api/strategies/${strategyId}/dashboard`)) || {};
+
+  const strategy = data.strategy || {};
+  const currentPositions = asArray(data.current_positions);
+  const recentTrades = asArray(data.recent_trades);
+  const closedPositions = asArray(data.closed_positions);
+  const equityCurve = asArray(data.equity_curve);
+
+  setTextIfExists("detailTitle", strategy.name || "策略详情");
+  setTextIfExists("detailDesc", strategy.description || "暂无策略描述");
+
+  const typeText = strategy.type ? `${strategy.type} · ${statusLabel(strategy.status)}` : statusLabel(strategy.status);
+  const versionText = strategy.version !== undefined && strategy.version !== null ? `v${strategy.version}` : "--";
+  setTextIfExists("detailType", typeText);
+  setTextIfExists("detailVersion", versionText);
+  setTextIfExists("detailStatus", statusLabel(strategy.status));
+
+  const summary = buildPositionSummary(strategy, currentPositions);
+  fillHeaderStats(summary);
+  renderSummaryMetrics(summary);
   renderEvaluationMetrics(data.evaluation_metrics || {});
-  renderCurve(data.equity_curve);
-  fillCurrentPositions(data.current_positions);
-  fillRecentTrades(data.recent_trades);
-  fillPositionHistory(data.closed_positions || []);
+  renderCurve(equityCurve);
+  fillCurrentPositions(currentPositions);
+  fillRecentTrades(recentTrades);
+  fillPositionHistory(closedPositions);
 }
 
 loadDashboard().catch((error) => {
   console.error(error);
-  alert(error.message);
+  alert(error.message || "加载失败");
 });

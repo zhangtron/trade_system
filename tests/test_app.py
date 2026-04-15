@@ -243,7 +243,7 @@ def test_strategy_dashboard_and_pages(client):
 
     detail_page = client.get(f"/strategies/{strategy['strategy_id']}")
     assert detail_page.status_code == 200
-    assert "Strategy Insight" in detail_page.text
+    assert "策略详情" in detail_page.text
 
     manual_order_page = client.get("/manual-order")
     assert manual_order_page.status_code == 200
