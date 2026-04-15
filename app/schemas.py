@@ -64,6 +64,10 @@ class TradeCreate(BaseModel):
     remark: str | None = None
 
 
+class TradeSignalCreate(TradeCreate):
+    direction: TradeDirection
+
+
 class TradeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -78,6 +82,17 @@ class TradeOut(BaseModel):
     realized_pnl: Decimal | None
     trade_time: datetime
     remark: str | None
+    exec_status: str | None = None
+    claimed_by: str | None = None
+    claimed_at: datetime | None = None
+    submit_entrust_no: str | None = None
+    submit_price: Decimal | None = None
+    submit_quantity: int | None = None
+    last_submit_at: datetime | None = None
+    exec_try_count: int
+    fail_reason: str | None = None
+    filled_at: datetime | None = None
+    filled_amount: Decimal | None = None
 
 
 class PaginatedTrades(BaseModel):
@@ -99,7 +114,7 @@ class TradeStats(BaseModel):
 class PositionPriceUpdateItem(BaseModel):
     symbol: str
     current_price: Decimal = Field(gt=0)
-    strategy_id: int | None = None
+    strategy_id: int
 
 
 class PositionPriceUpdate(BaseModel):
@@ -108,7 +123,7 @@ class PositionPriceUpdate(BaseModel):
 
 class PositionManualAdjustmentItem(BaseModel):
     symbol: str
-    strategy_id: int | None = None
+    strategy_id: int
     quantity: Decimal | None = Field(default=None, gt=0)
     market_value: Decimal | None = Field(default=None, ge=0)
 
@@ -146,25 +161,21 @@ class PositionOverview(BaseModel):
     positions: int
 
 
-class EvaluationCreate(BaseModel):
-    strategy_id: int
-    start_date: date
-    end_date: date
-    initial_capital: Decimal = Field(gt=0)
-    risk_free_rate: Decimal = Decimal("0.02")
-    benchmark_annual_return: Decimal = Decimal("0.03")
-
-
-class EvaluationOut(BaseModel):
+class ClosedPositionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    eval_id: int
+    history_id: int
     strategy_id: int
-    start_date: date
-    end_date: date
-    initial_capital: Decimal
-    final_value: Decimal | None
-    metrics: dict[str, Any] | None
+    symbol: str
+    open_time: datetime
+    close_time: datetime
+    entry_quantity: Decimal
+    exit_quantity: Decimal
+    avg_cost: Decimal
+    close_price: Decimal
+    realized_pnl: Decimal
+    total_commission: Decimal
+    close_trade_id: int | None
     created_at: datetime
 
 
@@ -174,22 +185,10 @@ class EquityPoint(BaseModel):
     drawdown: Decimal | None
 
 
-class StrategyPositionHistory(BaseModel):
-    trade_id: int
-    symbol: str
-    direction: TradeDirection
-    quantity_change: Decimal
-    position_quantity: Decimal
-    avg_cost: Decimal
-    market_price: Decimal | None
-    unrealized_pnl: Decimal
-    trade_time: datetime
-
-
 class StrategyDetail(BaseModel):
     strategy: StrategyOut
     evaluation_metrics: dict[str, Any]
     current_positions: list[PositionOut]
-    position_history: list[StrategyPositionHistory]
+    closed_positions: list[ClosedPositionOut]
     equity_curve: list[EquityPoint]
     recent_trades: list[TradeOut]

@@ -49,6 +49,10 @@ Thumbs.db
 # Environment
 .env
 .env.local
+config.yaml
+
+# Local/Manual DB migrations (managed manually on remote)
+migrations/
 
 # Test
 .pytest_cache/

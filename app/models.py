@@ -1,10 +1,10 @@
 ﻿from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
 
-from sqlalchemy import JSON, Date, DateTime, Enum as SqlEnum, ForeignKey, Index, Numeric, String, Text
+from sqlalchemy import BigInteger, JSON, DateTime, Enum as SqlEnum, ForeignKey, Index, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -40,7 +40,7 @@ class Strategy(Base):
 
     trades: Mapped[list["Trade"]] = relationship(back_populates="strategy")
     positions: Mapped[list["Position"]] = relationship(back_populates="strategy")
-    evaluations: Mapped[list["Evaluation"]] = relationship(back_populates="strategy")
+    closed_positions: Mapped[list["ClosedPosition"]] = relationship(back_populates="strategy")
 
 
 class Trade(Base):
@@ -49,6 +49,8 @@ class Trade(Base):
         Index("ix_trades_strategy_id", "strategy_id"),
         Index("ix_trades_symbol", "symbol"),
         Index("ix_trades_trade_time", "trade_time"),
+        Index("idx_trades_exec_status_time", "exec_status", "trade_time"),
+        Index("idx_trades_submit_entrust_no", "submit_entrust_no"),
     )
 
     trade_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -62,6 +64,17 @@ class Trade(Base):
     realized_pnl: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
     trade_time: Mapped[datetime] = mapped_column(DateTime, default=now_utc_naive, nullable=False)
     remark: Mapped[str | None] = mapped_column(String(255))
+    exec_status: Mapped[str | None] = mapped_column(String(20))
+    claimed_by: Mapped[str | None] = mapped_column(String(64))
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    submit_entrust_no: Mapped[str | None] = mapped_column(String(64))
+    submit_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
+    submit_quantity: Mapped[int | None] = mapped_column(BigInteger)
+    last_submit_at: Mapped[datetime | None] = mapped_column(DateTime)
+    exec_try_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    fail_reason: Mapped[str | None] = mapped_column(String(255))
+    filled_at: Mapped[datetime | None] = mapped_column(DateTime)
+    filled_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
 
     strategy: Mapped["Strategy"] = relationship(back_populates="trades")
 
@@ -71,6 +84,7 @@ class Position(Base):
     __table_args__ = (
         Index("ix_positions_strategy_id", "strategy_id"),
         Index("ix_positions_symbol", "symbol"),
+        UniqueConstraint("strategy_id", "symbol", name="uq_positions_strategy_symbol"),
     )
 
     position_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -87,30 +101,26 @@ class Position(Base):
     strategy: Mapped["Strategy"] = relationship(back_populates="positions")
 
 
-class Evaluation(Base):
-    __tablename__ = "evaluations"
+class ClosedPosition(Base):
+    __tablename__ = "position_history"
+    __table_args__ = (
+        Index("ix_position_history_strategy_id", "strategy_id"),
+        Index("ix_position_history_symbol", "symbol"),
+        Index("ix_position_history_close_time", "close_time"),
+    )
 
-    eval_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    history_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     strategy_id: Mapped[int] = mapped_column(ForeignKey("strategies.strategy_id"), nullable=False)
-    start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    end_date: Mapped[date] = mapped_column(Date, nullable=False)
-    initial_capital: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
-    final_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
-    metrics: Mapped[dict | None] = mapped_column(JSON)
+    symbol: Mapped[str] = mapped_column(String(30), nullable=False)
+    open_time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    close_time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    entry_quantity: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
+    exit_quantity: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
+    avg_cost: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
+    close_price: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
+    realized_pnl: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=Decimal("0"))
+    total_commission: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
+    close_trade_id: Mapped[int | None] = mapped_column(ForeignKey("trades.trade_id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc_naive, nullable=False)
 
-    strategy: Mapped["Strategy"] = relationship(back_populates="evaluations")
-    equity_curve: Mapped[list["EquityCurve"]] = relationship(back_populates="evaluation", cascade="all, delete-orphan")
-
-
-class EquityCurve(Base):
-    __tablename__ = "equity_curve"
-
-    curve_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    eval_id: Mapped[int] = mapped_column(ForeignKey("evaluations.eval_id"), nullable=False)
-    strategy_id: Mapped[int] = mapped_column(ForeignKey("strategies.strategy_id"), nullable=False)
-    curve_date: Mapped[date] = mapped_column(Date, nullable=False)
-    equity_value: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
-    drawdown: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
-
-    evaluation: Mapped["Evaluation"] = relationship(back_populates="equity_curve")
+    strategy: Mapped["Strategy"] = relationship(back_populates="closed_positions")

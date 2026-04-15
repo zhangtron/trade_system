@@ -216,21 +216,21 @@ function fillRecentTrades(trades) {
 
 function fillPositionHistory(history) {
   if (!history.length) {
-    renderEmptyRow("positionHistoryBody", 8, "暂无历史持仓变化");
+    renderEmptyRow("positionHistoryBody", 8, "暂无已平仓历史");
     return;
   }
   document.getElementById("positionHistoryBody").innerHTML = history
     .map(
       (item) => `
         <tr>
-          <td>${formatDate(item.trade_time)}</td>
+          <td>${formatDate(item.close_time)}</td>
           <td>${item.symbol}</td>
-          <td>${item.direction}</td>
-          <td class="${metricClass(item.quantity_change)}">${formatNumber(item.quantity_change, 6)}</td>
-          <td>${formatNumber(item.position_quantity, 6)}</td>
+          <td>${formatDate(item.open_time)}</td>
+          <td>${formatNumber(item.entry_quantity, 6)}</td>
           <td>${formatNumber(item.avg_cost, 6)}</td>
-          <td>${formatNumber(item.market_price, 6)}</td>
-          <td class="${metricClass(item.unrealized_pnl)}">${formatNumber(item.unrealized_pnl)}</td>
+          <td>${formatNumber(item.close_price, 6)}</td>
+          <td>${formatNumber(item.total_commission, 4)}</td>
+          <td class="${metricClass(item.realized_pnl)}">${formatNumber(item.realized_pnl)}</td>
         </tr>
       `,
     )
@@ -250,7 +250,7 @@ async function loadDashboard() {
   renderCurve(data.equity_curve);
   fillCurrentPositions(data.current_positions);
   fillRecentTrades(data.recent_trades);
-  fillPositionHistory(data.position_history);
+  fillPositionHistory(data.closed_positions || []);
 }
 
 loadDashboard().catch((error) => {

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 
 def now_naive() -> datetime:
@@ -71,10 +71,11 @@ def test_trade_position_stats_and_strategy_metrics(client):
     strategy_b = create_strategy(client, name="??B")
 
     buy = client.post(
-        "/api/trades/buy",
+        "/api/trades",
         json={
             "strategy_id": strategy["strategy_id"],
             "symbol": "IF8888",
+            "direction": "BUY",
             "quantity": 10,
             "price": 100,
             "commission": 1.5,
@@ -84,10 +85,11 @@ def test_trade_position_stats_and_strategy_metrics(client):
     assert buy.status_code == 200
 
     buy2 = client.post(
-        "/api/trades/buy",
+        "/api/trades",
         json={
             "strategy_id": strategy["strategy_id"],
             "symbol": "IF8888",
+            "direction": "BUY",
             "quantity": 5,
             "price": 120,
             "commission": 1,
@@ -97,10 +99,11 @@ def test_trade_position_stats_and_strategy_metrics(client):
     assert buy2.status_code == 200
 
     client.post(
-        "/api/trades/buy",
+        "/api/trades",
         json={
             "strategy_id": strategy_b["strategy_id"],
             "symbol": "AG8888",
+            "direction": "BUY",
             "quantity": 2,
             "price": 50,
             "commission": 0.5,
@@ -140,10 +143,11 @@ def test_trade_position_stats_and_strategy_metrics(client):
     assert float(repriced_position["current_price"]) == 130.0
 
     sell = client.post(
-        "/api/trades/sell",
+        "/api/trades",
         json={
             "strategy_id": strategy["strategy_id"],
             "symbol": "IF8888",
+            "direction": "SELL",
             "quantity": 8,
             "price": 135,
             "commission": 2,
@@ -179,10 +183,11 @@ def test_strategy_dashboard_and_pages(client):
     now = now_naive()
     strategy = create_strategy(client)
     client.post(
-        "/api/trades/buy",
+        "/api/trades",
         json={
             "strategy_id": strategy["strategy_id"],
             "symbol": "RB9999",
+            "direction": "BUY",
             "quantity": 10,
             "price": 100,
             "commission": 1,
@@ -198,10 +203,11 @@ def test_strategy_dashboard_and_pages(client):
         json={"items": [{"strategy_id": strategy["strategy_id"], "symbol": "RB9999", "quantity": 12, "market_value": 1320}]},
     )
     client.post(
-        "/api/trades/sell",
+        "/api/trades",
         json={
             "strategy_id": strategy["strategy_id"],
             "symbol": "RB9999",
+            "direction": "SELL",
             "quantity": 5,
             "price": 112,
             "commission": 1,
@@ -214,7 +220,7 @@ def test_strategy_dashboard_and_pages(client):
     data = dashboard.json()
     assert data["strategy"]["name"] == strategy["name"]
     assert len(data["current_positions"]) == 1
-    assert len(data["position_history"]) == 2
+    assert len(data["closed_positions"]) == 0
     assert len(data["equity_curve"]) >= 10
     assert len(data["recent_trades"]) == 2
     assert "strategy_return_pct" in data["evaluation_metrics"]
@@ -239,70 +245,64 @@ def test_strategy_dashboard_and_pages(client):
     assert detail_page.status_code == 200
     assert "Strategy Insight" in detail_page.text
 
-    tester_page = client.get("/trade-tester")
-    assert tester_page.status_code == 200
-    assert "Order Sandbox" in tester_page.text
-    assert "updateQuantityButton" in tester_page.text
-    assert "updateMarketValueButton" in tester_page.text
+    manual_order_page = client.get("/manual-order")
+    assert manual_order_page.status_code == 200
+    assert "manualOrderForm" in manual_order_page.text
+    assert "/static/manual_order.js" in manual_order_page.text
 
 
-def test_evaluation_flow_with_extended_metrics(client):
+
+def test_closed_position_history_flow(client):
     strategy = create_strategy(client)
     client.post(
-        "/api/trades/buy",
+        "/api/trades",
         json={
             "strategy_id": strategy["strategy_id"],
             "symbol": "RB9999",
+            "direction": "BUY",
             "quantity": 10,
             "price": 100,
             "commission": 1,
             "trade_time": "2026-02-01T09:30:00",
         },
     )
-    client.put("/api/positions/update-prices", json={"items": [{"symbol": "RB9999", "current_price": 110}]})
+    client.put(
+        "/api/positions/update-prices",
+        json={"items": [{"strategy_id": strategy["strategy_id"], "symbol": "RB9999", "current_price": 110}]},
+    )
     client.post(
-        "/api/trades/sell",
+        "/api/trades",
         json={
             "strategy_id": strategy["strategy_id"],
             "symbol": "RB9999",
+            "direction": "SELL",
             "quantity": 5,
             "price": 112,
             "commission": 1,
             "trade_time": "2026-03-05T09:30:00",
         },
     )
-    response = client.post(
-        "/api/evaluations",
+    client.post(
+        "/api/trades",
         json={
             "strategy_id": strategy["strategy_id"],
-            "start_date": str(date(2026, 2, 1)),
-            "end_date": str(date(2026, 3, 10)),
-            "initial_capital": 100000,
-            "risk_free_rate": 0.02,
-            "benchmark_annual_return": 0.04,
+            "symbol": "RB9999",
+            "direction": "SELL",
+            "quantity": 5,
+            "price": 115,
+            "commission": 1,
+            "trade_time": "2026-03-07T09:30:00",
         },
     )
-    assert response.status_code == 200
-    data = response.json()
-    metrics = data["metrics"]
-    assert data["metrics"]["total_trades"] == 2
-    assert metrics["strategy_return_pct"] is not None
-    assert metrics["strategy_annualized_return_pct"] is not None
-    assert metrics["benchmark_return_pct"] is not None
-    assert metrics["excess_return_pct"] is not None
-    assert metrics["alpha"] is not None
-    assert metrics["beta"] is not None
-    assert metrics["sharpe_ratio"] is not None
-    assert metrics["sortino_ratio"] is not None
-    assert metrics["information_ratio"] is not None
-    assert metrics["strategy_volatility_pct"] is not None
-    assert metrics["benchmark_volatility_pct"] is not None
-    assert "," in metrics["max_drawdown_period"]
 
-    metrics_resp = client.get(f"/api/evaluations/{data['eval_id']}/metrics")
-    assert metrics_resp.status_code == 200
-    assert "benchmark_return_pct" in metrics_resp.json()
+    positions = client.get(f"/api/positions?strategy_id={strategy['strategy_id']}")
+    assert positions.status_code == 200
+    assert positions.json() == []
 
-    curve = client.get(f"/api/evaluations/{data['eval_id']}/equity-curve")
-    assert curve.status_code == 200
-    assert len(curve.json()) == 38
+    history = client.get(f"/api/positions/history?strategy_id={strategy['strategy_id']}")
+    assert history.status_code == 200
+    rows = history.json()
+    assert len(rows) == 1
+    assert rows[0]["symbol"] == "RB9999"
+    assert float(rows[0]["realized_pnl"]) != 0.0
+

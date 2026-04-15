@@ -19,8 +19,8 @@
       </a>
       <div class="site-nav">
         <a href="/">策略总览</a>
+        <a href="/manual-order">手动下单</a>
         <a class="active" href="/strategies/{{ strategy_id }}">策略详情</a>
-        <a href="/trade-tester">下单测试</a>
       </div>
       <span class="site-tag">STRATEGY INSIGHT</span>
     </nav>
@@ -149,14 +149,14 @@
           <table>
             <thead>
               <tr>
-                <th>时间</th>
+                <th>平仓时间</th>
                 <th>标的</th>
-                <th>方向</th>
-                <th>变动数量</th>
-                <th>持仓数量</th>
+                <th>开仓时间</th>
+                <th>开仓数量</th>
                 <th>平均成本</th>
-                <th>参考价格</th>
-                <th>浮动盈亏</th>
+                <th>平仓均价</th>
+                <th>总手续费</th>
+                <th>已实现盈亏</th>
               </tr>
             </thead>
             <tbody id="positionHistoryBody"></tbody>
@@ -167,7 +167,6 @@
 
     <div class="hero-actions" style="margin-top: 16px;">
       <a class="nav-btn nav-btn-secondary" href="/">返回策略列表</a>
-      <a class="nav-btn" href="/trade-tester">去下单测试</a>
     </div>
   </div>
   <script src="/static/strategy_detail.js"></script>

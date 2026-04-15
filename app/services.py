@@ -11,7 +11,7 @@ from typing import Any
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from app.models import EquityCurve, Evaluation, Position, Strategy, StrategyStatus, Trade, TradeDirection
+from app.models import ClosedPosition, Position, Strategy, StrategyStatus, Trade, TradeDirection
 
 TWO = Decimal("0.01")
 FOUR = Decimal("0.0001")
@@ -48,6 +48,10 @@ def quantize_four(value: Decimal) -> Decimal:
 
 def quantize_qty(value: Decimal) -> Decimal:
     return value.quantize(SIX, rounding=ROUND_HALF_UP)
+
+
+def quantize_commission(value: Decimal) -> Decimal:
+    return value.quantize(FOUR, rounding=ROUND_HALF_UP)
 
 
 def safe_decimal(value: Any, default: Decimal = ZERO) -> Decimal:
@@ -297,6 +301,8 @@ def apply_buy(db: Session, payload) -> Trade:
         realized_pnl=ZERO,
         trade_time=payload.trade_time or now_utc_naive(),
         remark=payload.remark,
+        exec_status="NEW",
+        exec_try_count=0,
     )
     position = db.execute(
         select(Position).where(Position.strategy_id == payload.strategy_id, Position.symbol == payload.symbol.upper())
@@ -337,6 +343,10 @@ def apply_sell(db: Session, payload) -> Trade:
     if not position or position.quantity < quantity:
         raise ValueError("持仓数量不足")
 
+    closing_open_time = position.open_time
+    closing_symbol = position.symbol
+    closing_strategy_id = position.strategy_id
+
     amount = quantize_money(quantity * price)
     cost_basis = quantize_money(position.avg_cost * quantity)
     realized_pnl = quantize_money(amount - cost_basis - commission)
@@ -351,15 +361,54 @@ def apply_sell(db: Session, payload) -> Trade:
         realized_pnl=realized_pnl,
         trade_time=payload.trade_time or now_utc_naive(),
         remark=payload.remark,
+        exec_status="NEW",
+        exec_try_count=0,
     )
     position.quantity = quantize_qty(position.quantity - quantity)
     position.current_price = quantize_qty(price)
     position.updated_at = now_utc_naive()
+    db.add(trade)
+    db.flush()
     if position.quantity == ZERO:
+        lifecycle_trades = db.execute(
+            select(Trade)
+            .where(
+                Trade.strategy_id == closing_strategy_id,
+                Trade.symbol == closing_symbol,
+                Trade.trade_time >= closing_open_time,
+                Trade.trade_time <= trade.trade_time,
+                Trade.trade_id <= trade.trade_id,
+            )
+            .order_by(Trade.trade_time.asc(), Trade.trade_id.asc())
+        ).scalars().all()
+        buy_qty = sum((item.quantity for item in lifecycle_trades if item.direction == TradeDirection.BUY), start=ZERO)
+        sell_qty = sum((item.quantity for item in lifecycle_trades if item.direction == TradeDirection.SELL), start=ZERO)
+        buy_cost = sum(
+            ((item.amount + item.commission) for item in lifecycle_trades if item.direction == TradeDirection.BUY),
+            start=ZERO,
+        )
+        sell_amount = sum((item.amount for item in lifecycle_trades if item.direction == TradeDirection.SELL), start=ZERO)
+        realized_total = sum(((item.realized_pnl or ZERO) for item in lifecycle_trades if item.direction == TradeDirection.SELL), start=ZERO)
+        total_commission = sum((item.commission for item in lifecycle_trades), start=ZERO)
+        db.add(
+            ClosedPosition(
+                strategy_id=closing_strategy_id,
+                symbol=closing_symbol,
+                open_time=closing_open_time,
+                close_time=trade.trade_time,
+                entry_quantity=quantize_qty(buy_qty if buy_qty > ZERO else quantity),
+                exit_quantity=quantize_qty(sell_qty if sell_qty > ZERO else quantity),
+                avg_cost=quantize_qty(buy_cost / buy_qty) if buy_qty > ZERO else quantize_qty(position.avg_cost),
+                close_price=quantize_qty(sell_amount / sell_qty) if sell_qty > ZERO else quantize_qty(price),
+                realized_pnl=quantize_money(realized_total),
+                total_commission=quantize_commission(total_commission),
+                close_trade_id=trade.trade_id,
+                created_at=now_utc_naive(),
+            )
+        )
         db.delete(position)
     else:
         recalc_position(position)
-    db.add(trade)
     db.commit()
     db.refresh(trade)
     return trade
@@ -373,7 +422,30 @@ def paginate(query: Select, page: int, page_size: int):
 def export_trades_csv(trades: list[Trade]) -> str:
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["trade_id", "strategy_id", "symbol", "direction", "quantity", "price", "amount", "commission", "realized_pnl", "trade_time", "remark"])
+    writer.writerow([
+        "trade_id",
+        "strategy_id",
+        "symbol",
+        "direction",
+        "quantity",
+        "price",
+        "amount",
+        "commission",
+        "realized_pnl",
+        "trade_time",
+        "remark",
+        "exec_status",
+        "claimed_by",
+        "claimed_at",
+        "submit_entrust_no",
+        "submit_price",
+        "submit_quantity",
+        "last_submit_at",
+        "exec_try_count",
+        "fail_reason",
+        "filled_at",
+        "filled_amount",
+    ])
     for trade in trades:
         writer.writerow([
             trade.trade_id,
@@ -387,6 +459,17 @@ def export_trades_csv(trades: list[Trade]) -> str:
             trade.realized_pnl,
             trade.trade_time.isoformat(),
             trade.remark or "",
+            trade.exec_status or "",
+            trade.claimed_by or "",
+            trade.claimed_at.isoformat() if trade.claimed_at else "",
+            trade.submit_entrust_no or "",
+            trade.submit_price if trade.submit_price is not None else "",
+            trade.submit_quantity if trade.submit_quantity is not None else "",
+            trade.last_submit_at.isoformat() if trade.last_submit_at else "",
+            trade.exec_try_count,
+            trade.fail_reason or "",
+            trade.filled_at.isoformat() if trade.filled_at else "",
+            trade.filled_amount if trade.filled_amount is not None else "",
         ])
     return buf.getvalue()
 
@@ -419,44 +502,9 @@ def load_strategy_positions(db: Session, strategy_id: int) -> list[Position]:
     return db.execute(query).scalars().all()
 
 
-def build_position_history(trades: list[Trade]) -> list[dict[str, Any]]:
-    states: dict[str, dict[str, Decimal | None]] = {}
-    history: list[dict[str, Any]] = []
-    for trade in trades:
-        state = states.setdefault(trade.symbol, {"quantity": ZERO, "avg_cost": ZERO, "market_price": None})
-        quantity = safe_decimal(state["quantity"])
-        avg_cost = safe_decimal(state["avg_cost"])
-        trade_price = Decimal(trade.price)
-
-        if trade.direction == TradeDirection.BUY:
-            total_qty = quantity + trade.quantity
-            total_cost = (avg_cost * quantity) + trade.amount + trade.commission
-            avg_cost = quantize_qty(total_cost / total_qty) if total_qty > ZERO else ZERO
-            quantity = quantize_qty(total_qty)
-        else:
-            quantity = quantize_qty(quantity - trade.quantity)
-            if quantity <= ZERO:
-                quantity = ZERO
-                avg_cost = ZERO
-
-        state["quantity"] = quantity
-        state["avg_cost"] = avg_cost
-        state["market_price"] = trade_price
-        unrealized = quantize_money((trade_price - avg_cost) * quantity) if quantity > ZERO else ZERO
-        history.append(
-            {
-                "trade_id": trade.trade_id,
-                "symbol": trade.symbol,
-                "direction": trade.direction,
-                "quantity_change": trade.quantity if trade.direction == TradeDirection.BUY else quantize_qty(-trade.quantity),
-                "position_quantity": quantity,
-                "avg_cost": avg_cost,
-                "market_price": trade_price,
-                "unrealized_pnl": unrealized,
-                "trade_time": trade.trade_time,
-            }
-        )
-    return history
+def load_strategy_closed_positions(db: Session, strategy_id: int) -> list[ClosedPosition]:
+    query = select(ClosedPosition).where(ClosedPosition.strategy_id == strategy_id).order_by(ClosedPosition.close_time.desc())
+    return db.execute(query).scalars().all()
 
 
 def build_strategy_equity_curve(
@@ -592,6 +640,7 @@ def build_live_evaluation_metrics(strategy: Strategy, trades: list[Trade], curre
 def build_strategy_snapshot(db: Session, strategy: Strategy) -> dict[str, Any]:
     trades = load_strategy_trades(db, strategy.strategy_id)
     positions = load_strategy_positions(db, strategy.strategy_id)
+    closed_positions = load_strategy_closed_positions(db, strategy.strategy_id)
     equity_curve = build_strategy_equity_curve(strategy, trades, positions)
     metrics = calculate_strategy_metrics(strategy, equity_curve)
     evaluation_metrics = build_live_evaluation_metrics(strategy, trades, positions)
@@ -599,7 +648,7 @@ def build_strategy_snapshot(db: Session, strategy: Strategy) -> dict[str, Any]:
         "strategy": serialize_strategy(strategy, metrics),
         "evaluation_metrics": evaluation_metrics,
         "current_positions": positions,
-        "position_history": list(reversed(build_position_history(trades))),
+        "closed_positions": closed_positions,
         "equity_curve": equity_curve,
         "recent_trades": list(reversed(trades[-20:])),
         "metrics": metrics,
@@ -615,7 +664,7 @@ def build_strategy_dashboard(db: Session, strategy_id: int) -> dict[str, Any]:
         "strategy": snapshot["strategy"],
         "evaluation_metrics": snapshot["evaluation_metrics"],
         "current_positions": snapshot["current_positions"],
-        "position_history": snapshot["position_history"],
+        "closed_positions": snapshot["closed_positions"],
         "equity_curve": snapshot["equity_curve"],
         "recent_trades": snapshot["recent_trades"],
     }
@@ -740,70 +789,3 @@ def build_evaluation_metrics(
     return metrics
 
 
-def build_evaluation(
-    db: Session,
-    strategy_id: int,
-    start_date: date,
-    end_date: date,
-    initial_capital: Decimal,
-    risk_free_rate: Decimal,
-    benchmark_annual_return: Decimal,
-) -> Evaluation:
-    strategy = db.get(Strategy, strategy_id)
-    if not strategy:
-        raise ValueError("策略不存在")
-    if end_date < start_date:
-        raise ValueError("结束日期不能早于开始日期")
-
-    trades = db.execute(
-        select(Trade).where(
-            Trade.strategy_id == strategy_id,
-            Trade.trade_time >= datetime.combine(start_date, datetime.min.time()),
-            Trade.trade_time <= datetime.combine(end_date, datetime.max.time()),
-        ).order_by(Trade.trade_time.asc())
-    ).scalars().all()
-
-    positions = db.execute(select(Position).where(Position.strategy_id == strategy_id)).scalars().all()
-    strategy_equity_curve = build_strategy_equity_curve(strategy, trades, positions, initial_capital_override=quantize_money(initial_capital))
-    strategy_equity_curve = [point for point in strategy_equity_curve if start_date <= point["curve_date"] <= end_date]
-    if not strategy_equity_curve:
-        strategy_equity_curve = [{"curve_date": start_date, "equity_value": quantize_money(initial_capital), "drawdown": ZERO}]
-
-    benchmark_return = get_strategy_benchmark_annual_return(strategy, benchmark_annual_return)
-    benchmark_curve = build_benchmark_curve(start_date, end_date, quantize_money(initial_capital), benchmark_return)
-
-    final_value = safe_decimal(strategy_equity_curve[-1]["equity_value"], quantize_money(initial_capital))
-    metrics = build_evaluation_metrics(
-        strategy=strategy,
-        equity_curve=strategy_equity_curve,
-        benchmark_curve=benchmark_curve,
-        trades=trades,
-        risk_free_rate=risk_free_rate,
-        benchmark_annual_return=benchmark_return,
-        initial_capital=quantize_money(initial_capital),
-    )
-
-    evaluation = Evaluation(
-        strategy_id=strategy_id,
-        start_date=start_date,
-        end_date=end_date,
-        initial_capital=quantize_money(initial_capital),
-        final_value=quantize_money(final_value),
-        metrics=metrics,
-        created_at=now_utc_naive(),
-    )
-    db.add(evaluation)
-    db.flush()
-    for point in strategy_equity_curve:
-        db.add(
-            EquityCurve(
-                eval_id=evaluation.eval_id,
-                strategy_id=strategy_id,
-                curve_date=point["curve_date"],
-                equity_value=quantize_money(safe_decimal(point["equity_value"])),
-                drawdown=quantize_four(safe_decimal(point.get("drawdown"), ZERO)),
-            )
-        )
-    db.commit()
-    db.refresh(evaluation)
-    return evaluation

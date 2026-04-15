@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>手动下单</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="icon" href="data:,">
+</head>
+<body class="page-index">
+  <div class="page-shell">
+    <nav class="site-bar">
+      <a class="brand" href="/">
+        <span class="brand-mark"></span>
+        <span class="brand-copy">
+          <strong>Sim Trade Studio</strong>
+          <span>策略管理 · 交易联调 · 指标观测</span>
+        </span>
+      </a>
+      <div class="site-nav">
+        <a href="/">策略总览</a>
+        <a class="active" href="/manual-order">手动下单</a>
+        <a href="/docs" target="_blank" rel="noreferrer">接口文档</a>
+      </div>
+      <span class="site-tag">MANUAL ORDER</span>
+    </nav>
+
+    <header class="hero hero-home">
+      <div class="hero-main">
+        <p class="eyebrow">Manual Execution</p>
+        <h1>手动创建订单</h1>
+        <p class="hero-copy">支持直接提交买卖信号到交易接口，提交后自动刷新当前策略的持仓、最近成交和统计信息。</p>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-card">
+          <span>策略成交数</span>
+          <strong id="manualTotalTrades">0</strong>
+        </div>
+        <div class="stat-card">
+          <span>已实现盈亏</span>
+          <strong id="manualRealizedPnl">0.00</strong>
+        </div>
+        <div class="stat-card">
+          <span>浮动盈亏</span>
+          <strong id="manualUnrealizedPnl">0.00</strong>
+        </div>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="section-tag">Order Form</p>
+          <h2>下单参数</h2>
+        </div>
+        <p>仅展示激活策略。提交后会立刻刷新当前策略的持仓和最近成交数据。</p>
+      </div>
+      <form id="manualOrderForm" class="strategy-form">
+        <label>
+          <span>策略</span>
+          <select id="strategySelect" name="strategy_id" required></select>
+        </label>
+        <label>
+          <span>方向</span>
+          <select id="directionSelect" name="direction" required>
+            <option value="BUY">买入 BUY</option>
+            <option value="SELL">卖出 SELL</option>
+          </select>
+        </label>
+        <label>
+          <span>标的</span>
+          <input id="symbolInput" name="symbol" value="RB9999" autocomplete="off" required>
+        </label>
+        <label>
+          <span>数量</span>
+          <input id="quantityInput" name="quantity" type="number" min="0.000001" step="0.000001" value="10" required>
+        </label>
+        <label>
+          <span>价格</span>
+          <input id="priceInput" name="price" type="number" min="0.000001" step="0.000001" value="100" required>
+        </label>
+        <label>
+          <span>手续费</span>
+          <input id="commissionInput" name="commission" type="number" min="0" step="0.0001" value="0">
+        </label>
+        <label>
+          <span>成交时间</span>
+          <input id="tradeTimeInput" name="trade_time" type="datetime-local">
+        </label>
+        <label>
+          <span>备注</span>
+          <input id="remarkInput" name="remark" placeholder="可选" autocomplete="off">
+        </label>
+        <div class="button-row full-row">
+          <button type="submit">提交订单</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="section-tag">Last Result</p>
+          <h2>最新提交结果</h2>
+        </div>
+      </div>
+      <div id="orderResult" class="form-hint">尚未提交订单。</div>
+    </section>
+
+    <div class="split-grid">
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-tag">Live Position</p>
+            <h2>当前持仓</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>标的</th>
+                <th>数量</th>
+                <th>平均成本</th>
+                <th>当前价格</th>
+                <th>持仓市值</th>
+                <th>浮动盈亏</th>
+              </tr>
+            </thead>
+            <tbody id="manualPositionsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-tag">Recent Trades</p>
+            <h2>最近成交</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>标的</th>
+                <th>方向</th>
+                <th>数量</th>
+                <th>价格</th>
+                <th>已实现盈亏</th>
+                <th>执行状态</th>
+              </tr>
+            </thead>
+            <tbody id="manualTradesBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+  <script src="/static/manual_order.js"></script>
+</body>
+</html>

@@ -10,11 +10,9 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.database import Base, engine, get_db
-from app.models import EquityCurve, Evaluation, Position, Strategy, StrategyStatus, Trade
+from app.models import ClosedPosition, Position, Strategy, StrategyStatus, Trade, TradeDirection
 from app.schemas import (
-    EquityPoint,
-    EvaluationCreate,
-    EvaluationOut,
+    ClosedPositionOut,
     PaginatedStrategies,
     PaginatedTrades,
     PositionManualAdjustment,
@@ -26,7 +24,7 @@ from app.schemas import (
     StrategyOut,
     StrategyStatusUpdate,
     StrategyUpdate,
-    TradeCreate,
+    TradeSignalCreate,
     TradeOut,
     TradeStats,
 )
@@ -34,7 +32,6 @@ from app.services import (
     ZERO,
     apply_buy,
     apply_sell,
-    build_evaluation,
     build_strategy_dashboard,
     build_strategy_snapshot,
     export_trades_csv,
@@ -72,9 +69,9 @@ def strategy_detail_page(strategy_id: int, request: Request):
     return templates.TemplateResponse(request, "strategy_detail.html", {"strategy_id": strategy_id})
 
 
-@app.get("/trade-tester", response_class=HTMLResponse)
-def trade_tester_page(request: Request):
-    return templates.TemplateResponse(request, "trade_tester.html")
+@app.get("/manual-order", response_class=HTMLResponse)
+def manual_order_page(request: Request):
+    return templates.TemplateResponse(request, "manual_order.html")
 
 
 @app.get("/health")
@@ -162,18 +159,14 @@ def update_strategy_status(strategy_id: int, payload: StrategyStatusUpdate, db: 
     return snapshot["strategy"]
 
 
-@app.post("/api/trades/buy", response_model=TradeOut)
-def create_buy_trade(payload: TradeCreate, db: Session = Depends(get_db)):
+@app.post("/api/trades", response_model=TradeOut)
+def create_trade_signal(payload: TradeSignalCreate, db: Session = Depends(get_db)):
     try:
-        return apply_buy(db, payload)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@app.post("/api/trades/sell", response_model=TradeOut)
-def create_sell_trade(payload: TradeCreate, db: Session = Depends(get_db)):
-    try:
-        return apply_sell(db, payload)
+        if payload.direction == TradeDirection.BUY:
+            return apply_buy(db, payload)
+        if payload.direction == TradeDirection.SELL:
+            return apply_sell(db, payload)
+        raise ValueError("不支持的交易方向")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -260,9 +253,10 @@ def list_positions(strategy_id: int | None = None, db: Session = Depends(get_db)
 def update_position_prices(payload: PositionPriceUpdate, db: Session = Depends(get_db)):
     updated = []
     for item in payload.items:
-        query = select(Position).where(Position.symbol == item.symbol.upper())
-        if item.strategy_id is not None:
-            query = query.where(Position.strategy_id == item.strategy_id)
+        query = select(Position).where(
+            Position.symbol == item.symbol.upper(),
+            Position.strategy_id == item.strategy_id,
+        )
         positions = db.execute(query).scalars().all()
         for position in positions:
             position.current_price = item.current_price
@@ -276,9 +270,10 @@ def update_position_prices(payload: PositionPriceUpdate, db: Session = Depends(g
 def manual_adjust_positions(payload: PositionManualAdjustment, db: Session = Depends(get_db)):
     updated = []
     for item in payload.items:
-        query = select(Position).where(Position.symbol == item.symbol.upper())
-        if item.strategy_id is not None:
-            query = query.where(Position.strategy_id == item.strategy_id)
+        query = select(Position).where(
+            Position.symbol == item.symbol.upper(),
+            Position.strategy_id == item.strategy_id,
+        )
         positions = db.execute(query).scalars().all()
         if not positions:
             raise HTTPException(status_code=404, detail=f"?????: {item.symbol.upper()}")
@@ -292,50 +287,18 @@ def manual_adjust_positions(payload: PositionManualAdjustment, db: Session = Dep
     return updated
 
 
+@app.get("/api/positions/history", response_model=list[ClosedPositionOut])
+def list_closed_positions(strategy_id: int | None = None, db: Session = Depends(get_db)):
+    query = select(ClosedPosition)
+    if strategy_id is not None:
+        query = query.where(ClosedPosition.strategy_id == strategy_id)
+    query = query.order_by(desc(ClosedPosition.close_time))
+    return db.execute(query).scalars().all()
+
+
 @app.get("/api/positions/{position_id}", response_model=PositionOut)
 def get_position(position_id: int, db: Session = Depends(get_db)):
     position = db.get(Position, position_id)
     if not position:
         raise HTTPException(status_code=404, detail="持仓不存在")
     return position
-
-
-@app.post("/api/evaluations", response_model=EvaluationOut)
-def create_evaluation(payload: EvaluationCreate, db: Session = Depends(get_db)):
-    try:
-        return build_evaluation(
-            db=db,
-            strategy_id=payload.strategy_id,
-            start_date=payload.start_date,
-            end_date=payload.end_date,
-            initial_capital=payload.initial_capital,
-            risk_free_rate=payload.risk_free_rate,
-            benchmark_annual_return=payload.benchmark_annual_return,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@app.get("/api/evaluations/{eval_id}", response_model=EvaluationOut)
-def get_evaluation(eval_id: int, db: Session = Depends(get_db)):
-    evaluation = db.get(Evaluation, eval_id)
-    if not evaluation:
-        raise HTTPException(status_code=404, detail="评估记录不存在")
-    return evaluation
-
-
-@app.get("/api/evaluations/{eval_id}/metrics")
-def get_evaluation_metrics(eval_id: int, db: Session = Depends(get_db)):
-    evaluation = db.get(Evaluation, eval_id)
-    if not evaluation:
-        raise HTTPException(status_code=404, detail="评估记录不存在")
-    return evaluation.metrics or {}
-
-
-@app.get("/api/evaluations/{eval_id}/equity-curve", response_model=list[EquityPoint])
-def get_evaluation_curve(eval_id: int, db: Session = Depends(get_db)):
-    evaluation = db.get(Evaluation, eval_id)
-    if not evaluation:
-        raise HTTPException(status_code=404, detail="评估记录不存在")
-    query = select(EquityCurve).where(EquityCurve.eval_id == eval_id).order_by(EquityCurve.curve_date.asc())
-    return db.execute(query).scalars().all()
