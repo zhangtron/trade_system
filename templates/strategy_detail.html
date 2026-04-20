@@ -74,7 +74,12 @@
             <p class="section-tag">Live Position</p>
             <h2>当前持仓</h2>
           </div>
-          <p>显示策略未平仓头寸。</p>
+          <div class="panel-actions">
+            <button class="action-btn" onclick="exportCurrentPositions()" type="button">
+              <span class="action-icon">📥</span>
+              <span>导出 CSV</span>
+            </button>
+          </div>
         </div>
         <div class="table-wrap">
           <table>
@@ -102,8 +107,14 @@
             <p class="section-tag">Recent Trades</p>
             <h2>最近成交</h2>
           </div>
-          <p>最近 20 笔交易。</p>
+          <div class="panel-actions">
+            <button class="action-btn" onclick="exportTrades()" type="button">
+              <span class="action-icon">📥</span>
+              <span>导出 CSV</span>
+            </button>
+          </div>
         </div>
+        <p class="panel-subtext">最近 20 笔交易。点击导出按钮可下载完整交易记录。</p>
         <div class="table-wrap">
           <table>
             <thead>
@@ -129,7 +140,12 @@
             <p class="section-tag">Position Timeline</p>
             <h2>历史持仓</h2>
           </div>
-          <p>显示已平仓历史数据。</p>
+          <div class="panel-actions">
+            <button class="action-btn" onclick="exportPositionHistory()" type="button">
+              <span class="action-icon">📥</span>
+              <span>导出 CSV</span>
+            </button>
+          </div>
         </div>
         <div class="table-wrap">
           <table>

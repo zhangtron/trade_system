@@ -319,3 +319,131 @@ loadDashboard().catch((error) => {
   console.error(error);
   alert(error.message || "加载失败");
 });
+
+// 导出功能
+async function exportCurrentPositions() {
+  const strategyId = document.body.dataset.strategyId;
+  try {
+    const response = await fetch(`/api/positions?strategy_id=${strategyId}`);
+    if (!response.ok) throw new Error("获取持仓数据失败");
+    const positions = await response.json();
+
+    if (!positions || positions.length === 0) {
+      alert("当前没有持仓数据");
+      return;
+    }
+
+    const csv = convertToCSV(positions, [
+      "position_id", "strategy_id", "symbol", "quantity", "avg_cost",
+      "current_price", "market_value", "unrealized_pnl", "open_time", "updated_at"
+    ], {
+      position_id: "序号",
+      strategy_id: "策略ID",
+      symbol: "标的",
+      quantity: "数量",
+      avg_cost: "平均成本",
+      current_price: "当前价格",
+      market_value: "持仓市值",
+      unrealized_pnl: "浮动盈亏",
+      open_time: "开仓时间",
+      updated_at: "更新时间"
+    });
+
+    downloadCSV(csv, `positions_${strategyId}_${new Date().toISOString().slice(0, 10)}.csv`);
+  } catch (error) {
+    console.error("导出失败:", error);
+    alert("导出失败: " + error.message);
+  }
+}
+
+async function exportTrades() {
+  const strategyId = document.body.dataset.strategyId;
+  try {
+    const response = await fetch(`/api/trades?export=csv&strategy_id=${strategyId}`);
+    if (!response.ok) throw new Error("获取交易数据失败");
+    const csv = await response.text();
+
+    if (!csv || csv.trim().length === 0) {
+      alert("当前没有交易数据");
+      return;
+    }
+
+    downloadCSV(csv, `trades_${strategyId}_${new Date().toISOString().slice(0, 10)}.csv`);
+  } catch (error) {
+    console.error("导出失败:", error);
+    alert("导出失败: " + error.message);
+  }
+}
+
+async function exportPositionHistory() {
+  const strategyId = document.body.dataset.strategyId;
+  try {
+    const response = await fetch(`/api/positions/history?strategy_id=${strategyId}`);
+    if (!response.ok) throw new Error("获取历史持仓数据失败");
+    const history = await response.json();
+
+    if (!history || history.length === 0) {
+      alert("当前没有历史持仓数据");
+      return;
+    }
+
+    const csv = convertToCSV(history, [
+      "history_id", "strategy_id", "symbol", "open_time", "close_time",
+      "entry_quantity", "exit_quantity", "avg_cost", "close_price",
+      "realized_pnl", "total_commission", "close_trade_id", "created_at"
+    ], {
+      history_id: "序号",
+      strategy_id: "策略ID",
+      symbol: "标的",
+      open_time: "开仓时间",
+      close_time: "平仓时间",
+      entry_quantity: "开仓数量",
+      exit_quantity: "平仓数量",
+      avg_cost: "平均成本",
+      close_price: "平仓均价",
+      realized_pnl: "已实现盈亏",
+      total_commission: "总手续费",
+      close_trade_id: "平仓交易ID",
+      created_at: "创建时间"
+    });
+
+    downloadCSV(csv, `position_history_${strategyId}_${new Date().toISOString().slice(0, 10)}.csv`);
+  } catch (error) {
+    console.error("导出失败:", error);
+    alert("导出失败: " + error.message);
+  }
+}
+
+function convertToCSV(data, fields, fieldNames) {
+  const headers = fields.map(f => fieldNames[f] || f);
+  const rows = data.map(item => {
+    return fields.map(field => {
+      const value = item[field];
+      if (value === null || value === undefined) return "";
+      if (typeof value === "number") return value.toString();
+      return String(value);
+    });
+  });
+
+  const csvContent = [
+    headers.join(","),
+    ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+  ].join("\n");
+
+  return csvContent;
+}
+
+function downloadCSV(csvContent, filename) {
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+
+  link.setAttribute("href", url);
+  link.setAttribute("download", filename);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  console.log(`✅ CSV 导出成功: ${filename}`);
+}
