@@ -302,7 +302,6 @@ def apply_buy(db: Session, payload) -> Trade:
         trade_time=payload.trade_time or now_utc_naive(),
         remark=payload.remark,
         exec_status="NEW",
-        exec_try_count=0,
     )
     position = db.execute(
         select(Position).where(Position.strategy_id == payload.strategy_id, Position.symbol == payload.symbol.upper())
@@ -362,7 +361,6 @@ def apply_sell(db: Session, payload) -> Trade:
         trade_time=payload.trade_time or now_utc_naive(),
         remark=payload.remark,
         exec_status="NEW",
-        exec_try_count=0,
     )
     position.quantity = quantize_qty(position.quantity - quantity)
     position.current_price = quantize_qty(price)
@@ -435,16 +433,6 @@ def export_trades_csv(trades: list[Trade]) -> str:
         "trade_time",
         "remark",
         "exec_status",
-        "claimed_by",
-        "claimed_at",
-        "submit_entrust_no",
-        "submit_price",
-        "submit_quantity",
-        "last_submit_at",
-        "exec_try_count",
-        "fail_reason",
-        "filled_at",
-        "filled_amount",
     ])
     for trade in trades:
         writer.writerow([
@@ -460,16 +448,6 @@ def export_trades_csv(trades: list[Trade]) -> str:
             trade.trade_time.isoformat(),
             trade.remark or "",
             trade.exec_status or "",
-            trade.claimed_by or "",
-            trade.claimed_at.isoformat() if trade.claimed_at else "",
-            trade.submit_entrust_no or "",
-            trade.submit_price if trade.submit_price is not None else "",
-            trade.submit_quantity if trade.submit_quantity is not None else "",
-            trade.last_submit_at.isoformat() if trade.last_submit_at else "",
-            trade.exec_try_count,
-            trade.fail_reason or "",
-            trade.filled_at.isoformat() if trade.filled_at else "",
-            trade.filled_amount if trade.filled_amount is not None else "",
         ])
     return buf.getvalue()
 

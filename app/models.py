@@ -49,8 +49,6 @@ class Trade(Base):
         Index("ix_trades_strategy_id", "strategy_id"),
         Index("ix_trades_symbol", "symbol"),
         Index("ix_trades_trade_time", "trade_time"),
-        Index("idx_trades_exec_status_time", "exec_status", "trade_time"),
-        Index("idx_trades_submit_entrust_no", "submit_entrust_no"),
     )
 
     trade_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -65,16 +63,6 @@ class Trade(Base):
     trade_time: Mapped[datetime] = mapped_column(DateTime, default=now_utc_naive, nullable=False)
     remark: Mapped[str | None] = mapped_column(String(255))
     exec_status: Mapped[str | None] = mapped_column(String(20))
-    claimed_by: Mapped[str | None] = mapped_column(String(64))
-    claimed_at: Mapped[datetime | None] = mapped_column(DateTime)
-    submit_entrust_no: Mapped[str | None] = mapped_column(String(64))
-    submit_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
-    submit_quantity: Mapped[int | None] = mapped_column(BigInteger)
-    last_submit_at: Mapped[datetime | None] = mapped_column(DateTime)
-    exec_try_count: Mapped[int] = mapped_column(default=0, nullable=False)
-    fail_reason: Mapped[str | None] = mapped_column(String(255))
-    filled_at: Mapped[datetime | None] = mapped_column(DateTime)
-    filled_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
 
     strategy: Mapped["Strategy"] = relationship(back_populates="trades")
 

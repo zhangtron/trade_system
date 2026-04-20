@@ -83,16 +83,6 @@ class TradeOut(BaseModel):
     trade_time: datetime
     remark: str | None
     exec_status: str | None = None
-    claimed_by: str | None = None
-    claimed_at: datetime | None = None
-    submit_entrust_no: str | None = None
-    submit_price: Decimal | None = None
-    submit_quantity: int | None = None
-    last_submit_at: datetime | None = None
-    exec_try_count: int
-    fail_reason: str | None = None
-    filled_at: datetime | None = None
-    filled_amount: Decimal | None = None
 
 
 class PaginatedTrades(BaseModel):
