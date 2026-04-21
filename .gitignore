@@ -63,3 +63,4 @@ htmlcov/
 
 # Vendor (managed by conda)
 .vendor/
+.claude/

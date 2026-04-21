@@ -42,6 +42,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 hours
 REMEMBER_ME_EXPIRE_DAYS = 7
 
 # Password hashing
+# Use bcrypt with deprecated='auto' for better compatibility
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # HTTP Bearer token scheme
@@ -94,6 +95,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     """Hash a password for storing."""
+    # Ensure password doesn't exceed bcrypt's 72 byte limit
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        raise ValueError("Password too long (max 72 bytes)")
     return pwd_context.hash(password)
 
 
