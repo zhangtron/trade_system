@@ -29,7 +29,8 @@ def init(context):
 
     # 初始化 TradeApi
     # 注意：需要在聚宽平台中配置好网络请求权限
-    context.trade_api_base_url = "http://101.132.136.153:8899"
+    # 请将下面的 URL 替换为你的交易系统实际地址
+    context.trade_api_base_url = "http://YOUR_SERVER_IP:8899"  # 例如：http://localhost:8899 或 http://your-server-ip:8899
     context.strategy_id = 1  # 修改为你的策略ID
 
     # 记录股票买入时间

@@ -18,7 +18,8 @@
 
 1. **打开策略详情页面**
    ```
-   http://101.132.136.153:8899/strategies/1
+   http://YOUR_SERVER_IP:8899/strategies/1
+   例如：http://localhost:8899/strategies/1
    ```
 
 2. **打开 DevTools**
@@ -65,7 +66,7 @@
 // CSV 导出测试脚本
 // ==========================================
 
-const BASE_URL = "http://101.132.136.153:8899";
+const BASE_URL = "http://YOUR_SERVER_IP:8899";  // 例如：http://localhost:8899
 const STRATEGY_ID = 1; // 修改为你的策略ID
 
 // 测试所有导出功能
@@ -229,7 +230,8 @@ GET /api/positions/history?strategy_id=1
 
 1. **访问策略详情页面**
    ```
-   http://101.132.136.153:8899/strategies/1
+   http://YOUR_SERVER_IP:8899/strategies/1
+   例如：http://localhost:8899/strategies/1
    ```
 
 2. **打开 DevTools（F12）**

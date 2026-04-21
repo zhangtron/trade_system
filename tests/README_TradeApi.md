@@ -17,7 +17,7 @@ from trade_api import TradeApi
 
 # 创建 API 客户端
 api = TradeApi(
-    base_url="http://101.132.136.153:8899",  # 你的API地址
+    base_url="http://YOUR_SERVER_IP:8899",  # 你的API地址，例如：http://localhost:8899
     timeout=15
 )
 ```

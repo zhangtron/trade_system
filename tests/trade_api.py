@@ -11,7 +11,14 @@ from datetime import datetime
 class TradeApi:
     """聚宽交易平台API客户端"""
 
-    def __init__(self, base_url: str = "http://101.132.136.153:8899", timeout: int = 15):
+    def __init__(self, base_url: str = "http://YOUR_SERVER_IP:8899", timeout: int = 15):
+        """
+        初始化 TradeApi
+
+        Args:
+            base_url: 交易系统 API 地址，例如：http://localhost:8899 或 http://your-server-ip:8899
+            timeout: 请求超时时间（秒）
+        """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.session = requests.Session()
