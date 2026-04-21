@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理 - 交易系统</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        .user-management {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        .user-form {
+            background: var(--surface);
+            padding: 24px;
+            border-radius: var(--radius-xl);
+            margin-bottom: 24px;
+            border: 1px solid var(--surface-border);
+        }
+
+        .user-list {
+            background: var(--surface);
+            padding: 24px;
+            border-radius: var(--radius-xl);
+            border: 1px solid var(--surface-border);
+        }
+
+        .user-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            border-bottom: 1px solid var(--surface-border);
+        }
+
+        .user-item:last-child {
+            border-bottom: none;
+        }
+
+        .user-info h3 {
+            margin: 0 0 4px 0;
+            font-size: 16px;
+        }
+
+        .user-info p {
+            margin: 0;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .user-role-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .user-role-badge.admin {
+            background: var(--accent-soft);
+            color: var(--accent);
+        }
+
+        .user-role-badge.user {
+            background: var(--blue-soft);
+            color: var(--blue);
+        }
+
+        .form-actions {
+            margin-top: 20px;
+        }
+
+        .error-message {
+            background: var(--red-soft);
+            color: var(--red);
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .success-message {
+            background: var(--green-soft);
+            color: var(--green);
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="page-shell">
+        <nav class="site-bar">
+            <a class="brand" href="/">
+                <span class="brand-mark"></span>
+                <span class="brand-copy">
+                    <strong>Sim Trade Studio</strong>
+                    <span>用户管理</span>
+                </span>
+            </a>
+            <div class="site-nav">
+                <a href="/">策略总览</a>
+                <!-- 导航链接将通过 JavaScript 动态添加 -->
+                <a href="/docs" target="_blank" rel="noreferrer">接口文档</a>
+                <div id="userNav" class="user-nav">
+                    <!-- 用户信息将动态插入 -->
+                </div>
+            </div>
+        </nav>
+
+        <div class="user-management">
+            <h1>用户管理</h1>
+            <p style="color: var(--text-secondary); margin-bottom: 24px;">创建和管理系统用户（仅管理员可见）</p>
+
+            <div id="errorMessage" class="error-message"></div>
+            <div id="successMessage" class="success-message"></div>
+
+            <div class="user-form">
+                <h2>创建新用户</h2>
+                <form id="createUserForm">
+                    <div class="strategy-form">
+                        <label>
+                            <span>用户名 *</span>
+                            <input type="text" id="username" name="username" required
+                                   placeholder="请输入用户名（字母、数字、下划线）" pattern="[a-zA-Z0-9_]+">
+                        </label>
+
+                        <label>
+                            <span>密码 *</span>
+                            <input type="password" id="password" name="password" required
+                                   placeholder="请输入密码（至少8位）" minlength="8">
+                        </label>
+
+                        <label>
+                            <span>邮箱</span>
+                            <input type="email" id="email" name="email"
+                                   placeholder="请输入邮箱地址（可选）">
+                        </label>
+
+                        <label>
+                            <span>姓名</span>
+                            <input type="text" id="fullName" name="fullName"
+                                   placeholder="请输入真实姓名（可选）">
+                        </label>
+
+                        <label>
+                            <span>角色 *</span>
+                            <select id="role" name="role" required>
+                                <option value="user">普通用户</option>
+                                <option value="admin">管理员</option>
+                            </select>
+                        </label>
+
+                        <label></label>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit">创建用户</button>
+                        <button type="button" class="nav-btn-secondary" onclick="loadUsers()">刷新列表</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="user-list">
+                <h2>用户列表</h2>
+                <div id="userList">
+                    <p style="color: var(--text-muted); text-align: center; padding: 20px;">
+                        加载中...
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 登录模态框 -->
+    <div id="loginModal" class="login-modal-overlay">
+        <div class="login-modal">
+            <div class="login-box">
+                <h1>交易系统</h1>
+                <p class="subtitle">请登录以继续</p>
+
+                <form id="loginForm" class="login-form">
+                    <div class="form-group">
+                        <label for="username">用户名</label>
+                        <input
+                            type="text"
+                            id="username"
+                            name="username"
+                            required
+                            autocomplete="username"
+                            placeholder="请输入用户名"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">密码</label>
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            required
+                            autocomplete="current-password"
+                            placeholder="请输入密码"
+                        >
+                    </div>
+
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="rememberMe" name="rememberMe">
+                        <label for="rememberMe">记住登录状态</label>
+                    </div>
+
+                    <div id="errorMessage" class="error-message"></div>
+
+                    <button type="submit" class="btn-login">登录</button>
+                </form>
+
+                <div class="login-footer">
+                    <p>默认管理员账户：admin / admin123</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+    <script>
+        // 检查管理员权限
+        async function checkAdminPermission() {
+            const userInfo = sessionStorage.getItem('user_info') || localStorage.getItem('user_info');
+            if (!userInfo) {
+                window.location.href = '/login';
+                return false;
+            }
+
+            const user = JSON.parse(userInfo);
+            if (user.role !== 'admin') {
+                showError('您没有权限访问此页面，需要管理员权限');
+                document.getElementById('createUserForm').style.display = 'none';
+                return false;
+            }
+
+            return true;
+        }
+
+        // 显示错误信息
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // 显示成功信息
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        // 加载用户列表
+        async function loadUsers() {
+            try {
+                const users = await fetchJson('/api/users');
+                const userListDiv = document.getElementById('userList');
+
+                if (!users || users.length === 0) {
+                    userListDiv.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 20px;">暂无用户</p>';
+                    return;
+                }
+
+                userListDiv.innerHTML = users.map(user => `
+                    <div class="user-item">
+                        <div class="user-info">
+                            <h3>
+                                ${user.full_name || user.username}
+                                <span class="user-role-badge ${user.role}">
+                                    ${user.role === 'admin' ? '管理员' : '普通用户'}
+                                </span>
+                            </h3>
+                            <p>
+                                用户名: ${user.username}
+                                ${user.email ? ` | 邮箱: ${user.email}` : ''}
+                                ${!user.is_active ? ' | <span style="color: var(--red);">已禁用</span>' : ''}
+                            </p>
+                        </div>
+                        <div>
+                            ${user.user_id !== 1 ? `
+                                <button class="ghost-btn" onclick="deleteUser(${user.user_id}, '${user.username}')">删除</button>
+                            ` : '<span style="color: var(--text-muted); font-size: 12px;">系统管理员</span>'}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                showError('加载用户列表失败: ' + error.message);
+            }
+        }
+
+        // 删除用户
+        async function deleteUser(userId, username) {
+            if (!confirm(`确定要删除用户 "${username}" 吗？`)) {
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.detail || '删除失败');
+                }
+
+                showSuccess(`用户 "${username}" 删除成功！`);
+                loadUsers();
+            } catch (error) {
+                showError('删除用户失败: ' + error.message);
+            }
+        }
+
+        // 创建用户
+        document.getElementById('createUserForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const formData = new FormData(event.target);
+            const userData = {
+                username: formData.get('username'),
+                password: formData.get('password'),
+                email: formData.get('email') || null,
+                full_name: formData.get('fullName') || null,
+                role: formData.get('role')
+            };
+
+            try {
+                await fetchJson('/api/users', {
+                    method: 'POST',
+                    body: JSON.stringify(userData)
+                });
+
+                showSuccess('用户创建成功！');
+                event.target.reset();
+                loadUsers();
+            } catch (error) {
+                showError('创建用户失败: ' + error.message);
+            }
+        });
+
+        // 页面加载时检查权限并加载数据
+        checkAuthStatus().then(isAuthenticated => {
+            if (isAuthenticated) {
+                updateUserInfo();
+                checkAdminPermission().then(isAdmin => {
+                    if (isAdmin) {
+                        loadUsers();
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

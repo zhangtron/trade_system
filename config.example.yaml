@@ -1,0 +1,34 @@
+# 数据库配置
+database:
+  type: mysql  # mysql 或 sqlite
+  mysql:
+    user: root
+    password: your_secure_password_here  # 请修改为强密码
+    host: localhost
+    port: 3306
+    database: trade_system_db
+
+# 应用配置
+app:
+  host: 0.0.0.0
+  port: 8899
+
+# 认证配置
+auth:
+  # JWT 密钥 - 请使用强随机密钥（可以使用 scripts/generate_secret_key.py 生成）
+  secret_key: "CHANGE_THIS_TO_A_STRONG_RANDOM_KEY_MIN_32_CHARS"
+  # Token 有效期（分钟）
+  access_token_expire_minutes: 30  # 建议设置为15-30分钟
+  # 记住登录状态有效期（天）
+  remember_me_expire_days: 7
+
+# 安全配置
+security:
+  # 启用HTTPS（生产环境强烈建议）
+  enable_https: false
+  # CORS允许的源
+  cors_origins:
+    - "http://localhost:8899"
+    - "http://127.0.0.1:8899"
+  # 速率限制（每分钟请求数）
+  rate_limit: 60

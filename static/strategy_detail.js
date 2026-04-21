@@ -1,14 +1,207 @@
 async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
+  const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+  const headers = { "Content-Type": "application/json" };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, { headers, ...options });
+
+  if (response.status === 401) {
+    clearAuthAndRedirect();
+    throw new Error('请先登录');
+  }
+
   if (!response.ok) {
     const data = await response.json().catch(() => ({ detail: "请求失败" }));
     throw new Error(data.detail || "请求失败");
   }
   return response.json();
 }
+
+// Authentication functions
+function showLoginModal() {
+  const loginModal = document.getElementById('loginModal');
+  if (loginModal) {
+    loginModal.classList.add('active');
+  }
+}
+
+function hideLoginModal() {
+  const loginModal = document.getElementById('loginModal');
+  if (loginModal) {
+    loginModal.classList.remove('active');
+  }
+}
+
+function clearAuthAndRedirect() {
+  localStorage.removeItem('auth_token');
+  sessionStorage.removeItem('auth_token');
+  localStorage.removeItem('user_info');
+  sessionStorage.removeItem('user_info');
+  // 显示登录模态框而不是重定向
+  showLoginModal();
+}
+
+async function checkAuthStatus() {
+  const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+  if (!token) {
+    clearAuthAndRedirect();
+    return false;
+  }
+
+  try {
+    const response = await fetch('/api/auth/me', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      clearAuthAndRedirect();
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    clearAuthAndRedirect();
+    return false;
+  }
+}
+
+function updateUserInfo() {
+  const userInfo = localStorage.getItem('user_info') || sessionStorage.getItem('user_info');
+  const userNav = document.getElementById('userNav');
+
+  if (!userInfo) {
+    clearAuthAndRedirect();
+    return;
+  }
+
+  try {
+    const user = JSON.parse(userInfo);
+    if (userNav) {
+      const roleLabel = user.role === 'admin' ? '管理员' : '用户';
+      const userManagementLink = user.role === 'admin' ?
+        '<a href="/user-management">用户管理</a>' : '';
+      const manualOrderLink = user.role === 'admin' ?
+        '<a href="/manual-order">手动下单</a>' : '';
+      userNav.innerHTML = `
+        ${manualOrderLink}
+        ${userManagementLink}
+        <div class="user-info">
+          <span class="user-name">${user.full_name || user.username}</span>
+          <span class="user-role ${user.role}">${roleLabel}</span>
+        </div>
+        <button class="btn-logout" onclick="logout()">登出</button>
+      `;
+    }
+  } catch (error) {
+    console.error('Failed to parse user info:', error);
+    clearAuthAndRedirect();
+  }
+}
+
+function logout() {
+  if (confirm('确定要登出吗？')) {
+    clearAuthAndRedirect();
+  }
+}
+
+// Login form handler
+function handleLogin(event) {
+  event.preventDefault();
+
+  const usernameInput = document.getElementById('username');
+  const passwordInput = document.getElementById('password');
+  const rememberMeInput = document.getElementById('rememberMe');
+  const errorMessage = document.getElementById('errorMessage');
+
+  const username = usernameInput.value.trim();
+  const password = passwordInput.value;
+  const rememberMe = rememberMeInput.checked;
+
+  if (!username || !password) {
+    showError('请输入用户名和密码');
+    return;
+  }
+
+  // 禁用表单
+  const submitButton = document.querySelector('#loginForm button[type="submit"]');
+  submitButton.disabled = true;
+  submitButton.textContent = '登录中...';
+
+  fetch('/api/auth/login', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      username,
+      password,
+      remember_me: rememberMe
+    })
+  })
+  .then(response => {
+    if (!response.ok) {
+      return response.json().then(data => {
+        throw new Error(data.detail || '登录失败');
+      });
+    }
+    return response.json();
+  })
+  .then(data => {
+    // 存储 token
+    const storage = rememberMe ? localStorage : sessionStorage;
+    storage.setItem('auth_token', data.access_token);
+    storage.setItem('user_info', JSON.stringify(data.user));
+
+    // 清除另一个存储
+    if (rememberMe) {
+      sessionStorage.removeItem('auth_token');
+      sessionStorage.removeItem('user_info');
+    } else {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user_info');
+    }
+
+    // 隐藏登录模态框
+    hideLoginModal();
+
+    // 更新用户信息
+    updateUserInfo();
+
+    // 刷新页面数据
+    loadDashboard();
+
+    console.log('登录成功');
+  })
+  .catch(error => {
+    showError(error.message);
+    submitButton.disabled = false;
+    submitButton.textContent = '登录';
+  });
+}
+
+function showError(message) {
+  const errorMessage = document.getElementById('errorMessage');
+  if (errorMessage) {
+    errorMessage.textContent = message;
+    errorMessage.style.display = 'block';
+    setTimeout(() => {
+      errorMessage.style.display = 'none';
+    }, 5000);
+  }
+}
+
+// Setup login form handler when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm) {
+    loginForm.addEventListener('submit', handleLogin);
+  }
+});
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -315,16 +508,20 @@ async function loadDashboard() {
   fillPositionHistory(closedPositions);
 }
 
-loadDashboard().catch((error) => {
-  console.error(error);
-  alert(error.message || "加载失败");
-});
-
 // 导出功能
 async function exportCurrentPositions() {
   const strategyId = document.body.dataset.strategyId;
+  const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
   try {
-    const response = await fetch(`/api/positions?strategy_id=${strategyId}`);
+    const response = await fetch(`/api/positions?strategy_id=${strategyId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (response.status === 401) {
+      clearAuthAndRedirect();
+      return;
+    }
     if (!response.ok) throw new Error("获取持仓数据失败");
     const positions = await response.json();
 
@@ -358,8 +555,17 @@ async function exportCurrentPositions() {
 
 async function exportTrades() {
   const strategyId = document.body.dataset.strategyId;
+  const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
   try {
-    const response = await fetch(`/api/trades?export=csv&strategy_id=${strategyId}`);
+    const response = await fetch(`/api/trades?export=csv&strategy_id=${strategyId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (response.status === 401) {
+      clearAuthAndRedirect();
+      return;
+    }
     if (!response.ok) throw new Error("获取交易数据失败");
     const csv = await response.text();
 
@@ -377,8 +583,17 @@ async function exportTrades() {
 
 async function exportPositionHistory() {
   const strategyId = document.body.dataset.strategyId;
+  const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
   try {
-    const response = await fetch(`/api/positions/history?strategy_id=${strategyId}`);
+    const response = await fetch(`/api/positions/history?strategy_id=${strategyId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (response.status === 401) {
+      clearAuthAndRedirect();
+      return;
+    }
     if (!response.ok) throw new Error("获取历史持仓数据失败");
     const history = await response.json();
 
@@ -447,3 +662,14 @@ function downloadCSV(csvContent, filename) {
 
   console.log(`✅ CSV 导出成功: ${filename}`);
 }
+
+// 页面加载时检查认证状态
+checkAuthStatus().then(isAuthenticated => {
+  if (isAuthenticated) {
+    updateUserInfo();
+    loadDashboard().catch((error) => {
+      console.error(error);
+      alert(error.message || "加载失败");
+    });
+  }
+});

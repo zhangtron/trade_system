@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 交易系统</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        /* 简洁的登录页面，无导航链接 */
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        .login-nav {
+            display: none; /* 隐藏导航，登录页不需要 */
+        }
+    </style>
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <div class="login-box">
+            <h1>交易系统</h1>
+            <p class="subtitle">请登录以继续</p>
+
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <input
+                        type="text"
+                        id="username"
+                        name="username"
+                        required
+                        autocomplete="username"
+                        placeholder="请输入用户名"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="password">密码</label>
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        required
+                        autocomplete="current-password"
+                        placeholder="请输入密码"
+                    >
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="rememberMe" name="rememberMe">
+                    <label for="rememberMe">记住登录状态</label>
+                </div>
+
+                <div id="errorMessage" class="error-message"></div>
+
+                <button type="submit" class="btn-login">登录</button>
+            </form>
+
+            <div class="login-footer">
+                <p>默认管理员账户：admin / admin123</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/login.js"></script>
+</body>
+</html>
